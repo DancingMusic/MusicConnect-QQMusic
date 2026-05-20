@@ -2,6 +2,8 @@
 
 QQ Music connector for [DancingMusic](https://github.com/DancingMusic/DancingMusic).
 
+🔗 **Live demo:** [https://dancingmusic.github.io/MusicConnect-QQMusic/](https://dancingmusic.github.io/MusicConnect-QQMusic/) — search + play table built from this connector's own `dist/index.js`.
+
 QQ Music has no official open API. This connector targets a self-hosted instance of a community proxy project:
 
 - [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api) (Node, actively maintained)
