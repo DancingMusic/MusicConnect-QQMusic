@@ -84,7 +84,7 @@ export class QQMusicConnector implements MusicConnector {
     id: "qq-music",
     name: "QQ 音乐",
     description: "QQ Music data source (via self-hosted proxy API)",
-    version: "0.3.0",
+    version: "0.2.0",
     capabilities: ["search", "stream", "playlist"],
     configSchema: [
       {
