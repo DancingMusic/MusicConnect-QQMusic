@@ -81,8 +81,18 @@ export class QQMusicConnector implements MusicConnector {
     id: "qq-music",
     name: "QQ 音乐",
     description: "QQ Music data source (via self-hosted proxy API)",
-    version: "0.1.0",
+    version: "0.2.0",
     capabilities: ["search", "stream"],
+    configSchema: [
+      {
+        key: "apiBaseUrl",
+        label: "QQ Music API 端点",
+        type: "url",
+        required: true,
+        placeholder: "https://your-qqmusic-api.example.com",
+        help: "自部署的 Rain120/qq-music-api 或 jsososo/QQMusicApi 实例。QQ 没有官方开放 API，无代理则无法搜索。",
+      },
+    ],
   };
 
   private baseUrl: string = "";

@@ -1,19 +1,29 @@
 {
   "name": "@dancingmusic/music-connect-qqmusic",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "QQ Music connector for DancingMusic. Backed by a self-hosted QQMusicApi (Rain120/qq-music-api or jsososo/QQMusicApi).",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "exports": {
-    ".": { "import": "./dist/index.js" }
+    ".": {
+      "import": "./dist/index.js"
+    }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --clean --target es2020 --no-splitting",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["dancingmusic", "music-connector", "qq-music"],
+  "keywords": [
+    "dancingmusic",
+    "music-connector",
+    "qq-music"
+  ],
   "license": "MIT",
   "peerDependencies": {
     "@dancingmusic/music-store": ">=0.1.0"

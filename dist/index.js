@@ -29,8 +29,18 @@ var QQMusicConnector = class {
       id: "qq-music",
       name: "QQ \u97F3\u4E50",
       description: "QQ Music data source (via self-hosted proxy API)",
-      version: "0.1.0",
-      capabilities: ["search", "stream"]
+      version: "0.2.0",
+      capabilities: ["search", "stream"],
+      configSchema: [
+        {
+          key: "apiBaseUrl",
+          label: "QQ Music API \u7AEF\u70B9",
+          type: "url",
+          required: true,
+          placeholder: "https://your-qqmusic-api.example.com",
+          help: "\u81EA\u90E8\u7F72\u7684 Rain120/qq-music-api \u6216 jsososo/QQMusicApi \u5B9E\u4F8B\u3002QQ \u6CA1\u6709\u5B98\u65B9\u5F00\u653E API\uFF0C\u65E0\u4EE3\u7406\u5219\u65E0\u6CD5\u641C\u7D22\u3002"
+        }
+      ]
     };
     this.baseUrl = "";
   }
