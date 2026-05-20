@@ -64,6 +64,55 @@ describe("QQMusicConnector (contract)", () => {
     expect(t.durationSec).toBe(269);
   });
 
+  it("listPlaylists returns playlist-shaped results", async () => {
+    mockFetch({
+      "/top/playlist": {
+        data: {
+          total: 1,
+          list: [{
+            dissid: 8675309,
+            dissname: "经典华语",
+            imgurl: "https://y.gtimg.cn/x.jpg",
+            song_count: 50,
+            creator: { name: "QQ官方" },
+            introduction: "时代金曲",
+          }],
+        },
+      },
+    });
+    const c = new QQMusicConnector();
+    await c.init({ apiBaseUrl: BASE });
+    const r = await c.listPlaylists!();
+    expect(r.playlists).toHaveLength(1);
+    const p = r.playlists[0];
+    expect(p.id).toBe("qq-playlist:8675309");
+    expect(p.name).toBe("经典华语");
+    expect(p.trackCount).toBe(50);
+    expect(p.externalUrl).toContain("y.qq.com");
+  });
+
+  it("getPlaylistTracks returns the playlist songs", async () => {
+    mockFetch({
+      "/playlist": {
+        data: {
+          songlist: [{
+            songmid: "001fakp82WoZ8u",
+            songname: "晴天",
+            singer: [{ name: "周杰伦" }],
+            albumname: "叶惠美",
+            albummid: "002Neh8l0RxIPZ",
+            interval: 269,
+          }],
+        },
+      },
+    });
+    const c = new QQMusicConnector();
+    await c.init({ apiBaseUrl: BASE });
+    const r = await c.getPlaylistTracks!("qq-playlist:8675309");
+    expect(r.tracks).toHaveLength(1);
+    expect(r.tracks[0].id).toBe("qq:001fakp82WoZ8u");
+  });
+
   it("getStreamUrl returns a playable url", async () => {
     mockFetch({
       "/song/url": {

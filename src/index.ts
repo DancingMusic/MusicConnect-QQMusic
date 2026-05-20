@@ -20,6 +20,9 @@ import type {
   MusicSearchResult,
   MusicStreamInfo,
   MusicTrack,
+  MusicPlaylist,
+  MusicPlaylistList,
+  MusicPlaylistQuery,
 } from "@dancingmusic/music-store";
 
 export interface QQMusicConfig {
@@ -81,8 +84,8 @@ export class QQMusicConnector implements MusicConnector {
     id: "qq-music",
     name: "QQ 音乐",
     description: "QQ Music data source (via self-hosted proxy API)",
-    version: "0.2.0",
-    capabilities: ["search", "stream"],
+    version: "0.3.0",
+    capabilities: ["search", "stream", "playlist"],
     configSchema: [
       {
         key: "apiBaseUrl",
@@ -159,10 +162,79 @@ export class QQMusicConnector implements MusicConnector {
     return { url, format: "mp3" };
   }
 
+  async listPlaylists(query: MusicPlaylistQuery = {}): Promise<MusicPlaylistList> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 30;
+    if (!this.baseUrl) return { playlists: [], total: 0, page, pageSize };
+    // Most proxy forks expose /top/playlist with `categoryId` (number) or simple `cat`.
+    // Use a generic param the popular forks accept.
+    const url = `${this.baseUrl}/top/playlist?pageNo=${page}&pageSize=${pageSize}` +
+      (query.category ? `&categoryId=${encodeURIComponent(query.category)}` : "");
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`QQ playlist fetch failed: ${res.status}`);
+    const data = (await res.json()) as { data?: { list?: QQPlaylist[]; total?: number } };
+    const list = data.data?.list ?? [];
+    return {
+      playlists: list.map(toPlaylist),
+      total: data.data?.total ?? list.length,
+      page,
+      pageSize,
+    };
+  }
+
+  async getPlaylistTracks(
+    playlistId: string,
+    opts: { page?: number; pageSize?: number } = {},
+  ): Promise<MusicSearchResult> {
+    const page = opts.page ?? 1;
+    const pageSize = opts.pageSize ?? 30;
+    const id = this.parsePlaylistId(playlistId);
+    if (!id || !this.baseUrl) return { tracks: [], total: 0, page, pageSize };
+    const res = await fetch(`${this.baseUrl}/playlist?id=${encodeURIComponent(id)}`);
+    if (!res.ok) return { tracks: [], total: 0, page, pageSize };
+    const data = (await res.json()) as { data?: { songlist?: QQSong[] } };
+    const songs = data.data?.songlist ?? [];
+    return {
+      tracks: songs.map(toTrack),
+      total: songs.length,
+      page,
+      pageSize,
+    };
+  }
+
   private parseId(trackId: string): string | null {
     if (trackId.startsWith("qq:")) return trackId.slice(3);
     return trackId || null;
   }
+
+  private parsePlaylistId(id: string): string | null {
+    if (id.startsWith("qq-playlist:")) return id.slice("qq-playlist:".length);
+    return id || null;
+  }
+}
+
+interface QQPlaylist {
+  dissid?: string | number;
+  disstid?: string | number;
+  dissname?: string;
+  imgurl?: string;
+  song_count?: number;
+  song_num?: number;
+  creator?: { name?: string };
+  introduction?: string;
+}
+
+function toPlaylist(p: QQPlaylist): MusicPlaylist {
+  const id = String(p.dissid ?? p.disstid ?? "");
+  return {
+    id: `qq-playlist:${id}`,
+    name: p.dissname || "Unknown",
+    description: p.introduction,
+    coverUrl: p.imgurl,
+    trackCount: p.song_count ?? p.song_num,
+    curator: p.creator?.name,
+    externalUrl: id ? `https://y.qq.com/n/ryqq/playlist/${id}` : undefined,
+  };
 }
 
 export default QQMusicConnector;

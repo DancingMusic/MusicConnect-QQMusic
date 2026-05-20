@@ -29,8 +29,8 @@ var QQMusicConnector = class {
       id: "qq-music",
       name: "QQ \u97F3\u4E50",
       description: "QQ Music data source (via self-hosted proxy API)",
-      version: "0.2.0",
-      capabilities: ["search", "stream"],
+      version: "0.3.0",
+      capabilities: ["search", "stream", "playlist"],
       configSchema: [
         {
           key: "apiBaseUrl",
@@ -96,11 +96,59 @@ var QQMusicConnector = class {
     if (!url) return null;
     return { url, format: "mp3" };
   }
+  async listPlaylists(query = {}) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 30;
+    if (!this.baseUrl) return { playlists: [], total: 0, page, pageSize };
+    const url = `${this.baseUrl}/top/playlist?pageNo=${page}&pageSize=${pageSize}` + (query.category ? `&categoryId=${encodeURIComponent(query.category)}` : "");
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`QQ playlist fetch failed: ${res.status}`);
+    const data = await res.json();
+    const list = data.data?.list ?? [];
+    return {
+      playlists: list.map(toPlaylist),
+      total: data.data?.total ?? list.length,
+      page,
+      pageSize
+    };
+  }
+  async getPlaylistTracks(playlistId, opts = {}) {
+    const page = opts.page ?? 1;
+    const pageSize = opts.pageSize ?? 30;
+    const id = this.parsePlaylistId(playlistId);
+    if (!id || !this.baseUrl) return { tracks: [], total: 0, page, pageSize };
+    const res = await fetch(`${this.baseUrl}/playlist?id=${encodeURIComponent(id)}`);
+    if (!res.ok) return { tracks: [], total: 0, page, pageSize };
+    const data = await res.json();
+    const songs = data.data?.songlist ?? [];
+    return {
+      tracks: songs.map(toTrack),
+      total: songs.length,
+      page,
+      pageSize
+    };
+  }
   parseId(trackId) {
     if (trackId.startsWith("qq:")) return trackId.slice(3);
     return trackId || null;
   }
+  parsePlaylistId(id) {
+    if (id.startsWith("qq-playlist:")) return id.slice("qq-playlist:".length);
+    return id || null;
+  }
 };
+function toPlaylist(p) {
+  const id = String(p.dissid ?? p.disstid ?? "");
+  return {
+    id: `qq-playlist:${id}`,
+    name: p.dissname || "Unknown",
+    description: p.introduction,
+    coverUrl: p.imgurl,
+    trackCount: p.song_count ?? p.song_num,
+    curator: p.creator?.name,
+    externalUrl: id ? `https://y.qq.com/n/ryqq/playlist/${id}` : void 0
+  };
+}
 var index_default = QQMusicConnector;
 export {
   QQMusicConnector,
