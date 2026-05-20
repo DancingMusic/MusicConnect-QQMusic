@@ -91,6 +91,24 @@ describe("QQMusicConnector (contract)", () => {
     expect(p.externalUrl).toContain("y.qq.com");
   });
 
+  it("listPlaylists forwards sort to upstream sortId", async () => {
+    let sawSortId = "";
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const m = url.match(/sortId=(\d+)/);
+      if (m) sawSortId = m[1];
+      return Promise.resolve(new Response(JSON.stringify({ data: { total: 0, list: [] } }), {
+        status: 200, headers: { "content-type": "application/json" },
+      }));
+    });
+    const c = new QQMusicConnector();
+    await c.init({ apiBaseUrl: BASE });
+    await c.listPlaylists!({ sort: "new" });
+    expect(sawSortId).toBe("2");
+    await c.listPlaylists!({ sort: "hot" });
+    expect(sawSortId).toBe("5");
+  });
+
   it("getPlaylistTracks returns the playlist songs", async () => {
     mockFetch({
       "/playlist": {

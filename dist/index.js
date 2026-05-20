@@ -100,7 +100,8 @@ var QQMusicConnector = class {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 30;
     if (!this.baseUrl) return { playlists: [], total: 0, page, pageSize };
-    const url = `${this.baseUrl}/top/playlist?pageNo=${page}&pageSize=${pageSize}` + (query.category ? `&categoryId=${encodeURIComponent(query.category)}` : "");
+    const sortId = query.sort === "new" ? 2 : 5;
+    const url = `${this.baseUrl}/top/playlist?pageNo=${page}&pageSize=${pageSize}&sortId=${sortId}` + (query.category ? `&categoryId=${encodeURIComponent(query.category)}` : "");
     const res = await fetch(url);
     if (!res.ok) throw new Error(`QQ playlist fetch failed: ${res.status}`);
     const data = await res.json();

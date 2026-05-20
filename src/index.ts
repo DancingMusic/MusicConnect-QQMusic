@@ -166,9 +166,10 @@ export class QQMusicConnector implements MusicConnector {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 30;
     if (!this.baseUrl) return { playlists: [], total: 0, page, pageSize };
-    // Most proxy forks expose /top/playlist with `categoryId` (number) or simple `cat`.
-    // Use a generic param the popular forks accept.
-    const url = `${this.baseUrl}/top/playlist?pageNo=${page}&pageSize=${pageSize}` +
+    // QQ's official endpoint takes a `sortId` query: 5 = hot (most played),
+    // 2 = newest. Most proxy forks pass it through. Default = hot.
+    const sortId = query.sort === "new" ? 2 : 5;
+    const url = `${this.baseUrl}/top/playlist?pageNo=${page}&pageSize=${pageSize}&sortId=${sortId}` +
       (query.category ? `&categoryId=${encodeURIComponent(query.category)}` : "");
     const res = await fetch(url);
     if (!res.ok) throw new Error(`QQ playlist fetch failed: ${res.status}`);

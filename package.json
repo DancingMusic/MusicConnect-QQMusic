@@ -1,6 +1,6 @@
 {
   "name": "@dancingmusic/music-connect-qqmusic",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "QQ Music connector for DancingMusic. Backed by a self-hosted QQMusicApi (Rain120/qq-music-api or jsososo/QQMusicApi).",
   "type": "module",
   "main": "./dist/index.js",
