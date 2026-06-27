@@ -4,26 +4,26 @@ QQ Music connector for [DancingMusic](https://github.com/DancingMusic/DancingMus
 
 🔗 **Live demo:** [https://dancingmusic.github.io/MusicConnect-QQMusic/](https://dancingmusic.github.io/MusicConnect-QQMusic/) — search + play table built from this connector's own `dist/index.js`.
 
-QQ Music has no official open API. This connector targets a self-hosted instance of a community proxy project:
+QQ Music has no official open API. Account login uses the official QQ Music web page in the DancingMusic desktop login window and saves the returned cookie automatically. Search/playback data still needs a QQ Music API-compatible proxy when you want QQ catalog browsing:
 
 - [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api) (Node, actively maintained)
 - [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi) (Node, archived but functional)
 
 ## Setup
 
-1. Deploy a QQ Music API proxy (one of the above) and note the base URL, e.g. `https://qqmusic-api.your-domain.com`.
-2. In DancingMusic: open the music store → connector switcher (top-right) → **添加连接器** → **GitHub** tab → paste:
+1. In DancingMusic: open the music store → connector switcher (top-right) → **添加连接器** → **GitHub** tab → paste:
    ```
    https://github.com/DancingMusic/MusicConnect-QQMusic
    ```
-3. After it loads, click the gear icon next to the new connector and paste your API endpoint into the config field.
-4. If your proxy exposes QR login endpoints, use the connector login action in DancingMusic. The returned proxy-compatible cookie is saved as `authCookie`.
+2. Click **登录** and finish login in the official QQ Music page shown inside DancingMusic.
+3. Advanced only: deploy a QQ Music API proxy and paste its base URL into **高级设置** if you need QQ catalog search/playback.
 
 Optional login config fields:
 
-- `authCookie` — QQ Music proxy cookie, saved automatically after QR login.
-- `authStartPath` — QR creation endpoint path. Defaults to `/user/qr`.
-- `authPollPath` — QR polling endpoint path. Defaults to `/user/qr/check`.
+- `authCookie` — QQ Music cookie, saved automatically after official web login.
+- `apiBaseUrl` — advanced data proxy base URL.
+- `authStartPath` — legacy proxy QR creation endpoint path. Defaults to `/user/qr`.
+- `authPollPath` — legacy proxy QR polling endpoint path. Defaults to `/user/qr/check`.
 
 ## Track ID format
 
@@ -34,12 +34,12 @@ Optional login config fields:
 - `GET /search?key=...&pageNo=...&pageSize=...` — keyword search
 - `GET /song?songmid=...` — track detail
 - `GET /song/url?id=...` — stream URL
-- `GET /user/qr` — QR login start (configurable)
-- `GET /user/qr/check?key=...` — QR login polling (configurable)
+- Official web login at `https://y.qq.com/n/ryqq/profile` — desktop cookie capture
+- `GET /user/qr` / `GET /user/qr/check?key=...` — legacy proxy QR fallback (configurable)
 
 ## Note on legal status
 
-Same as the NetEase connector: QQ Music's catalog is licensed and most tracks require a paid VIP account. The connector returns playable URLs only for tracks the proxy can unlock (free + previews). For full-catalog access, deploy your own proxy with valid QQ cookies, or stay within free content.
+Same as the NetEase connector: QQ Music's catalog is licensed and most tracks require a paid VIP account. The connector returns playable URLs only for tracks the proxy can unlock (free + previews). For full-catalog access, use your own valid account session and stay within the platform's terms.
 
 ## License
 
@@ -51,7 +51,7 @@ This repo uses an auto-release workflow ([`.github/workflows/release.yml`](.gith
 
 **Pin to a specific version** (recommended for production):
 ```
-https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.4.0/dist/index.js
+https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.0/dist/index.js
 ```
 
 **Always-latest** (handy for dev, but jsdelivr caches `@main` for up to a week):

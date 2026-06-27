@@ -6,10 +6,11 @@
  *   - https://github.com/Rain120/qq-music-api  (Node)
  *   - https://github.com/jsososo/QQMusicApi    (Node, archived but still works)
  *
- * Users configure `apiBaseUrl` in the connector switcher to point at their
- * deployed instance. Tracks live behind QQ's DRM, so playable URLs are only
- * returned for free/preview tracks — exactly the same trade-off as the
- * NetEase connector.
+ * Users configure `apiBaseUrl` only when they need a custom data proxy. Login
+ * itself uses QQ Music's official web page and can be handled by the
+ * DancingMusic desktop login window. Tracks live behind QQ's DRM, so playable
+ * URLs are only returned for free/preview tracks — exactly the same trade-off
+ * as the NetEase connector.
  *
  * Track ID format: `qq:<songmid>` (QQ uses string songmid as the canonical id)
  */
@@ -58,6 +59,31 @@ interface QQSongUrlResponse {
 }
 
 type AnyRecord = Record<string, unknown>;
+const QQ_WEB_COOKIE_FLOW_ID = "qq-music-web-cookie";
+const QQ_LOGIN_URL = "https://y.qq.com/n/ryqq/profile";
+const QQ_WARMUP_URL = "https://y.qq.com/n/ryqq/player";
+const QQ_COOKIE_PRIORITY = [
+  "uin",
+  "qqmusic_uin",
+  "wxuin",
+  "login_type",
+  "qm_keyst",
+  "qqmusic_key",
+  "music_key",
+  "p_skey",
+  "skey",
+  "psrf_qqopenid",
+  "psrf_qqunionid",
+  "psrf_qqaccess_token",
+  "psrf_qqrefresh_token",
+  "wxopenid",
+  "wxunionid",
+  "wxrefresh_token",
+  "wxskey",
+  "p_uin",
+  "ptcz",
+  "RK",
+];
 
 function joinSinger(s: QQSong): string {
   if (!s.singer) return "";
@@ -107,21 +133,54 @@ function normalizeImageUrl(value: string | undefined): string | undefined {
   return value;
 }
 
+function parseCookieHeader(cookieText: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  String(cookieText || "").split(";").forEach((part) => {
+    const idx = part.indexOf("=");
+    if (idx <= 0) return;
+    const key = part.slice(0, idx).trim();
+    const value = part.slice(idx + 1).trim();
+    if (key) out[key] = value;
+  });
+  return out;
+}
+
+function qqCookieHasLogin(cookieText: string): boolean {
+  const obj = parseCookieHeader(cookieText);
+  const rawUin = Number(obj.login_type) === 2
+    ? (obj.wxuin || obj.uin || obj.p_uin || "")
+    : (obj.uin || obj.qqmusic_uin || obj.wxuin || obj.p_uin || "");
+  const uin = String(rawUin).replace(/\D/g, "");
+  const musicKey = obj.qm_keyst || obj.qqmusic_key || obj.music_key || obj.p_skey || obj.skey ||
+    obj.psrf_qqaccess_token || obj.psrf_qqrefresh_token || obj.wxrefresh_token || obj.wxskey || "";
+  return !!(uin && musicKey);
+}
+
+function qqCookieHasPlaybackLogin(cookieText: string): boolean {
+  const obj = parseCookieHeader(cookieText);
+  const rawUin = Number(obj.login_type) === 2
+    ? (obj.wxuin || obj.uin || obj.p_uin || "")
+    : (obj.uin || obj.qqmusic_uin || obj.wxuin || obj.p_uin || "");
+  const uin = String(rawUin).replace(/\D/g, "");
+  const playbackKey = obj.qm_keyst || obj.qqmusic_key || obj.music_key || obj.wxskey || "";
+  return !!(uin && playbackKey);
+}
+
 export class QQMusicConnector implements MusicConnector {
   readonly meta: MusicConnectorMeta = {
     id: "qq-music",
     name: "QQ 音乐",
-    description: "QQ Music data source with proxy QR login",
-    version: "0.4.0",
+    description: "QQ Music data source with official web login",
+    version: "0.5.0",
     capabilities: ["search", "stream", "playlist", "login"],
     configSchema: [
       {
         key: "apiBaseUrl",
         label: "QQ Music API 端点",
         type: "url",
-        required: true,
+        required: false,
         placeholder: "https://your-qqmusic-api.example.com",
-        help: "自部署的 Rain120/qq-music-api 或 jsososo/QQMusicApi 实例。QQ 没有官方开放 API，无代理则无法搜索。",
+        help: "高级设置：自部署的 Rain120/qq-music-api 或 jsososo/QQMusicApi 实例。登录不需要配置此项；未配置时无法搜索 QQ 曲库。",
       },
       {
         key: "authCookie",
@@ -129,7 +188,7 @@ export class QQMusicConnector implements MusicConnector {
         type: "password",
         required: false,
         placeholder: "uin=...; qm_keyst=...",
-        help: "扫码登录后自动保存。也可以粘贴代理兼容 cookie。",
+        help: "官方网页登录后自动保存。普通用户不需要手动粘贴。",
       },
       {
         key: "authStartPath",
@@ -165,8 +224,8 @@ export class QQMusicConnector implements MusicConnector {
     this.authPollPath = typed?.authPollPath || "/user/qr/check";
     if (!this.baseUrl) {
       console.warn(
-        "[QQMusicConnector] apiBaseUrl not configured — search will fail. " +
-        "Deploy https://github.com/Rain120/qq-music-api or similar.",
+        "[QQMusicConnector] apiBaseUrl not configured — QQ search will stay empty. " +
+        "Login can still use the official web cookie flow.",
       );
     }
   }
@@ -190,10 +249,13 @@ export class QQMusicConnector implements MusicConnector {
       return { status: "anonymous", message: "已取消 QQ 音乐登录" };
     }
     if (intent === "continue") {
+      const capturedCookie = firstString(request.input?.cookie, request.input?.authCookie);
+      if (capturedCookie) return this.acceptWebCookie(capturedCookie);
+      if (request.flowId === QQ_WEB_COOKIE_FLOW_ID) return this.startWebLogin("请继续在 QQ 音乐官方登录窗口完成登录");
       if (!request.flowId) return { status: "error", message: "缺少 QQ 音乐登录 flowId" };
       return this.continueQrLogin(request.flowId);
     }
-    return this.startQrLogin();
+    return this.startWebLogin();
   }
 
   async search(query: MusicListQuery): Promise<MusicSearchResult> {
@@ -339,6 +401,46 @@ export class QQMusicConnector implements MusicConnector {
       expiresAt: Date.now() + 2 * 60 * 1000,
       nextPollMs: 2500,
       message: "使用 QQ 音乐 App 扫码确认",
+    };
+  }
+
+  private startWebLogin(message = "在 QQ 音乐官方页面完成登录后，DancingMusic 会自动保存当前账号会话。"): MusicConnectorLoginResult {
+    return {
+      status: "pending",
+      flow: "browser",
+      flowId: QQ_WEB_COOKIE_FLOW_ID,
+      actions: [{
+        type: "open-url",
+        label: "打开 QQ 音乐官方登录窗口",
+        url: QQ_LOGIN_URL,
+        cookieCapture: {
+          provider: "qq-music",
+          title: "QQ 音乐登录",
+          domains: ["qq.com", "y.qq.com", "qqmusic.qq.com"],
+          requiredCookieNames: ["uin", "qqmusic_uin", "wxuin", "p_uin"],
+          playbackCookieNames: ["qm_keyst", "qqmusic_key", "music_key", "wxskey"],
+          cookieNames: QQ_COOKIE_PRIORITY,
+          warmupUrl: QQ_WARMUP_URL,
+          message: "桌面端会在播放器内打开 QQ 音乐官方登录页，并自动读取播放所需 cookie。",
+        },
+        message,
+      }],
+      nextPollMs: 4000,
+      message,
+    };
+  }
+
+  private acceptWebCookie(cookie: string): MusicConnectorLoginResult {
+    if (!qqCookieHasLogin(cookie)) {
+      return { status: "error", message: "未读取到有效 QQ 音乐会话 cookie" };
+    }
+    this.authCookie = cookie;
+    return {
+      status: "authenticated",
+      message: qqCookieHasPlaybackLogin(cookie)
+        ? "QQ 音乐登录成功"
+        : "QQ 音乐登录成功；如部分歌曲无法播放，请重新打开登录窗口补全播放 cookie",
+      configPatch: { authCookie: cookie },
     };
   }
 
