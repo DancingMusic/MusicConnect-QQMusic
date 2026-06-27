@@ -17,6 +17,13 @@ QQ Music has no official open API. This connector targets a self-hosted instance
    https://github.com/DancingMusic/MusicConnect-QQMusic
    ```
 3. After it loads, click the gear icon next to the new connector and paste your API endpoint into the config field.
+4. If your proxy exposes QR login endpoints, use the connector login action in DancingMusic. The returned proxy-compatible cookie is saved as `authCookie`.
+
+Optional login config fields:
+
+- `authCookie` — QQ Music proxy cookie, saved automatically after QR login.
+- `authStartPath` — QR creation endpoint path. Defaults to `/user/qr`.
+- `authPollPath` — QR polling endpoint path. Defaults to `/user/qr/check`.
 
 ## Track ID format
 
@@ -27,6 +34,8 @@ QQ Music has no official open API. This connector targets a self-hosted instance
 - `GET /search?key=...&pageNo=...&pageSize=...` — keyword search
 - `GET /song?songmid=...` — track detail
 - `GET /song/url?id=...` — stream URL
+- `GET /user/qr` — QR login start (configurable)
+- `GET /user/qr/check?key=...` — QR login polling (configurable)
 
 ## Note on legal status
 
@@ -42,7 +51,7 @@ This repo uses an auto-release workflow ([`.github/workflows/release.yml`](.gith
 
 **Pin to a specific version** (recommended for production):
 ```
-https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.1.1/dist/index.js
+https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.4.0/dist/index.js
 ```
 
 **Always-latest** (handy for dev, but jsdelivr caches `@main` for up to a week):

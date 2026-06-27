@@ -23,10 +23,15 @@ import type {
   MusicPlaylist,
   MusicPlaylistList,
   MusicPlaylistQuery,
+  MusicConnectorLoginRequest,
+  MusicConnectorLoginResult,
 } from "@dancingmusic/music-store";
 
 export interface QQMusicConfig {
   apiBaseUrl?: string;
+  authCookie?: string;
+  authStartPath?: string;
+  authPollPath?: string;
 }
 
 interface QQSong {
@@ -51,6 +56,8 @@ interface QQSongUrlResponse {
   result?: number;
   data?: { playUrl?: { [mid: string]: string } } | string;
 }
+
+type AnyRecord = Record<string, unknown>;
 
 function joinSinger(s: QQSong): string {
   if (!s.singer) return "";
@@ -79,13 +86,34 @@ function toTrack(s: QQSong): MusicTrack {
   };
 }
 
+function asRecord(value: unknown): AnyRecord {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as AnyRecord : {};
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return undefined;
+}
+
+function normalizeImageUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (/^(?:https?:|data:image\/)/i.test(value)) return value;
+  if (/^[a-z0-9+/=]+$/i.test(value) && value.length > 80) {
+    return `data:image/png;base64,${value}`;
+  }
+  return value;
+}
+
 export class QQMusicConnector implements MusicConnector {
   readonly meta: MusicConnectorMeta = {
     id: "qq-music",
     name: "QQ 音乐",
-    description: "QQ Music data source (via self-hosted proxy API)",
-    version: "0.2.0",
-    capabilities: ["search", "stream", "playlist"],
+    description: "QQ Music data source with proxy QR login",
+    version: "0.4.0",
+    capabilities: ["search", "stream", "playlist", "login"],
     configSchema: [
       {
         key: "apiBaseUrl",
@@ -95,20 +123,77 @@ export class QQMusicConnector implements MusicConnector {
         placeholder: "https://your-qqmusic-api.example.com",
         help: "自部署的 Rain120/qq-music-api 或 jsososo/QQMusicApi 实例。QQ 没有官方开放 API，无代理则无法搜索。",
       },
+      {
+        key: "authCookie",
+        label: "QQ 音乐登录 Cookie",
+        type: "password",
+        required: false,
+        placeholder: "uin=...; qm_keyst=...",
+        help: "扫码登录后自动保存。也可以粘贴代理兼容 cookie。",
+      },
+      {
+        key: "authStartPath",
+        label: "二维码创建路径",
+        type: "text",
+        required: false,
+        placeholder: "/user/qr",
+        default: "/user/qr",
+        help: "不同 QQ 音乐代理的登录端点可能不同，可按自部署服务调整。",
+      },
+      {
+        key: "authPollPath",
+        label: "二维码轮询路径",
+        type: "text",
+        required: false,
+        placeholder: "/user/qr/check",
+        default: "/user/qr/check",
+        help: "轮询端点需返回登录状态和 cookie。",
+      },
     ],
   };
 
   private baseUrl: string = "";
+  private authCookie = "";
+  private authStartPath = "/user/qr";
+  private authPollPath = "/user/qr/check";
 
   async init(config?: Record<string, unknown>): Promise<void> {
     const typed = config as QQMusicConfig | undefined;
     this.baseUrl = (typed?.apiBaseUrl || "").replace(/\/$/, "");
+    this.authCookie = typed?.authCookie || "";
+    this.authStartPath = typed?.authStartPath || "/user/qr";
+    this.authPollPath = typed?.authPollPath || "/user/qr/check";
     if (!this.baseUrl) {
       console.warn(
         "[QQMusicConnector] apiBaseUrl not configured — search will fail. " +
         "Deploy https://github.com/Rain120/qq-music-api or similar.",
       );
     }
+  }
+
+  async login(request: MusicConnectorLoginRequest = { intent: "status" }): Promise<MusicConnectorLoginResult> {
+    const intent = request.intent ?? "status";
+    if (intent === "status") {
+      return this.authCookie
+        ? { status: "authenticated", message: "QQ 音乐账号会话已配置" }
+        : { status: "anonymous", message: "未登录 QQ 音乐" };
+    }
+    if (intent === "logout") {
+      this.authCookie = "";
+      return {
+        status: "anonymous",
+        message: "已退出 QQ 音乐账号",
+        configPatch: { authCookie: "" },
+      };
+    }
+    if (intent === "cancel") {
+      return { status: "anonymous", message: "已取消 QQ 音乐登录" };
+    }
+    if (intent === "continue") {
+      if (!request.flowId) return { status: "error", message: "缺少 QQ 音乐登录 flowId" };
+      return this.continueQrLogin(request.flowId);
+    }
+    return this.startQrLogin();
   }
 
   async search(query: MusicListQuery): Promise<MusicSearchResult> {
@@ -120,10 +205,11 @@ export class QQMusicConnector implements MusicConnector {
     }
 
     // Most QQMusicApi forks expose GET /search?key=...&pageNo=...&pageSize=...
-    const url = `${this.baseUrl}/search?key=${encodeURIComponent(keyword)}&pageNo=${page}&pageSize=${pageSize}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`QQ Music search failed: ${res.status}`);
-    const data = (await res.json()) as QQSearchResponse;
+    const data = await this.request<QQSearchResponse>("/search", {
+      key: keyword,
+      pageNo: page,
+      pageSize,
+    });
 
     // Two common response shapes from popular forks
     const list = data.data?.list ?? data.data?.song?.list ?? [];
@@ -140,9 +226,7 @@ export class QQMusicConnector implements MusicConnector {
   async getTrack(trackId: string): Promise<MusicTrack | null> {
     const mid = this.parseId(trackId);
     if (!mid || !this.baseUrl) return null;
-    const res = await fetch(`${this.baseUrl}/song?songmid=${encodeURIComponent(mid)}`);
-    if (!res.ok) return null;
-    const data = (await res.json()) as { data?: QQSong | QQSong[] };
+    const data = await this.request<{ data?: QQSong | QQSong[] }>("/song", { songmid: mid });
     const s = Array.isArray(data.data) ? data.data[0] : data.data;
     return s ? toTrack(s) : null;
   }
@@ -150,9 +234,7 @@ export class QQMusicConnector implements MusicConnector {
   async getStreamUrl(trackId: string): Promise<MusicStreamInfo | null> {
     const mid = this.parseId(trackId);
     if (!mid || !this.baseUrl) return null;
-    const res = await fetch(`${this.baseUrl}/song/url?id=${encodeURIComponent(mid)}`);
-    if (!res.ok) return null;
-    const data = (await res.json()) as QQSongUrlResponse;
+    const data = await this.request<QQSongUrlResponse>("/song/url", { id: mid });
     let url: string | undefined;
     if (typeof data.data === "string") url = data.data;
     else if (data.data && typeof data.data === "object") {
@@ -169,11 +251,12 @@ export class QQMusicConnector implements MusicConnector {
     // QQ's official endpoint takes a `sortId` query: 5 = hot (most played),
     // 2 = newest. Most proxy forks pass it through. Default = hot.
     const sortId = query.sort === "new" ? 2 : 5;
-    const url = `${this.baseUrl}/top/playlist?pageNo=${page}&pageSize=${pageSize}&sortId=${sortId}` +
-      (query.category ? `&categoryId=${encodeURIComponent(query.category)}` : "");
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`QQ playlist fetch failed: ${res.status}`);
-    const data = (await res.json()) as { data?: { list?: QQPlaylist[]; total?: number } };
+    const data = await this.request<{ data?: { list?: QQPlaylist[]; total?: number } }>("/top/playlist", {
+      pageNo: page,
+      pageSize,
+      sortId,
+      ...(query.category ? { categoryId: query.category } : {}),
+    });
     const list = data.data?.list ?? [];
     return {
       playlists: list.map(toPlaylist),
@@ -191,15 +274,117 @@ export class QQMusicConnector implements MusicConnector {
     const pageSize = opts.pageSize ?? 30;
     const id = this.parsePlaylistId(playlistId);
     if (!id || !this.baseUrl) return { tracks: [], total: 0, page, pageSize };
-    const res = await fetch(`${this.baseUrl}/playlist?id=${encodeURIComponent(id)}`);
-    if (!res.ok) return { tracks: [], total: 0, page, pageSize };
-    const data = (await res.json()) as { data?: { songlist?: QQSong[] } };
+    const data = await this.request<{ data?: { songlist?: QQSong[] } }>("/playlist", { id });
     const songs = data.data?.songlist ?? [];
     return {
       tracks: songs.map(toTrack),
       total: songs.length,
       page,
       pageSize,
+    };
+  }
+
+  private async startQrLogin(): Promise<MusicConnectorLoginResult> {
+    if (!this.baseUrl) throw new Error("请先配置 QQ Music API 端点");
+    const body = await this.request<AnyRecord>(this.authStartPath);
+    const data = asRecord(body.data);
+    const flowId = firstString(
+      data.key,
+      data.unikey,
+      data.loginId,
+      data.qrKey,
+      body.key,
+      body.unikey,
+      body.loginId,
+      body.qrKey,
+    );
+    const qrUrl = firstString(
+      data.qrurl,
+      data.qrUrl,
+      data.qrCode,
+      data.qrcode,
+      data.url,
+      body.qrurl,
+      body.qrUrl,
+      body.qrCode,
+      body.qrcode,
+      body.url,
+    );
+    const imageUrl = normalizeImageUrl(firstString(
+      data.qrimg,
+      data.qrImg,
+      data.imageUrl,
+      data.image,
+      data.img,
+      body.qrimg,
+      body.qrImg,
+      body.imageUrl,
+      body.image,
+      body.img,
+    ));
+    if (!flowId && !qrUrl && !imageUrl) {
+      throw new Error("QQ 音乐代理未返回二维码登录信息");
+    }
+    return {
+      status: "pending",
+      flow: "qr",
+      flowId: flowId || qrUrl || imageUrl,
+      actions: [{
+        type: "qr",
+        label: "QQ 音乐扫码登录",
+        qrUrl,
+        imageUrl,
+        message: "使用 QQ 音乐 App 扫码确认",
+      }],
+      expiresAt: Date.now() + 2 * 60 * 1000,
+      nextPollMs: 2500,
+      message: "使用 QQ 音乐 App 扫码确认",
+    };
+  }
+
+  private async continueQrLogin(flowId: string): Promise<MusicConnectorLoginResult> {
+    if (!this.baseUrl) throw new Error("请先配置 QQ Music API 端点");
+    const body = await this.request<AnyRecord>(this.authPollPath, { key: flowId, loginId: flowId });
+    const data = asRecord(body.data);
+    const code = Number(data.code ?? body.code ?? body.result ?? data.result);
+    const status = String(data.status ?? body.status ?? data.message ?? body.message ?? "").toLowerCase();
+    const cookie = firstString(
+      data.cookie,
+      data.authCookie,
+      data.qqMusicCookie,
+      body.cookie,
+      body.authCookie,
+      body.qqMusicCookie,
+    );
+
+    if (cookie || code === 803 || /success|authenticated|login/.test(status)) {
+      this.authCookie = cookie || this.authCookie;
+      return {
+        status: "authenticated",
+        user: {
+          id: firstString(data.uin, data.id, body.uin, body.id),
+          name: firstString(data.nickname, data.nick, data.name, body.nickname, body.nick, body.name),
+          avatarUrl: firstString(data.avatarUrl, data.avatar, body.avatarUrl, body.avatar),
+        },
+        message: firstString(data.message, body.message) || "QQ 音乐登录成功",
+        configPatch: this.authCookie ? { authCookie: this.authCookie } : undefined,
+      };
+    }
+    if (code === 800 || code === 408 || /expire|timeout/.test(status)) {
+      return { status: "expired", message: firstString(data.message, body.message) || "二维码已过期" };
+    }
+    if (code === 801 || code === 802 || /wait|scan|confirm|pending/.test(status)) {
+      return {
+        status: "pending",
+        flow: "qr",
+        flowId,
+        message: firstString(data.message, body.message) || "等待扫码确认",
+        nextPollMs: 2500,
+      };
+    }
+    return {
+      status: "error",
+      message: firstString(data.message, body.message) || `QQ 音乐登录状态异常: ${Number.isFinite(code) ? code : "unknown"}`,
     };
   }
 
@@ -211,6 +396,21 @@ export class QQMusicConnector implements MusicConnector {
   private parsePlaylistId(id: string): string | null {
     if (id.startsWith("qq-playlist:")) return id.slice("qq-playlist:".length);
     return id || null;
+  }
+
+  private async request<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
+    const url = new URL(path, `${this.baseUrl}/`);
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, String(value));
+    }
+    if (this.authCookie && !url.searchParams.has("cookie")) {
+      url.searchParams.set("cookie", this.authCookie);
+    }
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      throw new Error(`QQ Music API failed: ${res.status} ${res.statusText}`);
+    }
+    return res.json() as Promise<T>;
   }
 }
 

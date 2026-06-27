@@ -23,8 +23,10 @@ describe("QQMusicConnector (contract)", () => {
   it("declares meta + required configSchema for apiBaseUrl", () => {
     const c = new QQMusicConnector();
     expect(c.meta.id).toBe("qq-music");
+    expect(c.meta.capabilities).toContain("login");
     const f = c.meta.configSchema?.find(x => x.key === "apiBaseUrl");
     expect(f?.required).toBe(true);
+    expect(c.meta.configSchema?.find(x => x.key === "authCookie")).toBeDefined();
   });
 
   it("returns empty when apiBaseUrl is missing", async () => {
@@ -144,5 +146,45 @@ describe("QQMusicConnector (contract)", () => {
     expect(info).not.toBeNull();
     expect(info!.url).toMatch(/^https?:\/\//);
     expect(info!.format).toBe("mp3");
+  });
+
+  it("supports proxy QR login and forwards cookie to future requests", async () => {
+    let sawCookie = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/user/qr/check")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          code: 803,
+          data: { cookie: "uin=123; qm_keyst=abc", nickname: "tester" },
+        }), { status: 200, headers: { "content-type": "application/json" } }));
+      }
+      if (url.includes("/user/qr")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          data: { key: "qq-key", qrurl: "https://qr.qq.test/login", qrimg: "data:image/png;base64,abc" },
+        }), { status: 200, headers: { "content-type": "application/json" } }));
+      }
+      if (url.includes("/search")) {
+        sawCookie = url.includes("cookie=uin%3D123%3B+qm_keyst%3Dabc");
+        return Promise.resolve(new Response(JSON.stringify({ data: { list: [], total: 0 } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }));
+      }
+      return Promise.resolve(new Response("", { status: 404 }));
+    });
+
+    const c = new QQMusicConnector();
+    await c.init({ apiBaseUrl: BASE });
+    const start = await c.login({ intent: "start" });
+    expect(start.flow).toBe("qr");
+    expect(start.flowId).toBe("qq-key");
+    expect(start.actions?.[0]?.type).toBe("qr");
+
+    const done = await c.login({ intent: "continue", flowId: "qq-key" });
+    expect(done.status).toBe("authenticated");
+    expect(done.configPatch).toEqual({ authCookie: "uin=123; qm_keyst=abc" });
+
+    await c.search({ keyword: "周杰伦" });
+    expect(sawCookie).toBe(true);
   });
 });
