@@ -171,7 +171,7 @@ export class QQMusicConnector implements MusicConnector {
     id: "qq-music",
     name: "QQ 音乐",
     description: "QQ Music data source with official web login",
-    version: "0.5.1",
+    version: "0.5.2",
     capabilities: ["search", "stream", "playlist", "login"],
     configSchema: [
       {
@@ -253,6 +253,7 @@ export class QQMusicConnector implements MusicConnector {
       if (capturedCookie) return this.acceptWebCookie(capturedCookie);
       if (request.flowId === QQ_WEB_COOKIE_FLOW_ID) return this.startWebLogin("请继续在 QQ 音乐官方登录窗口完成登录");
       if (!request.flowId) return { status: "error", message: "缺少 QQ 音乐登录 flowId" };
+      if (!this.baseUrl) return this.startWebLogin("请重新打开 QQ 音乐官方登录窗口；二维码代理登录需要先配置 QQ Music API 端点。");
       return this.continueQrLogin(request.flowId);
     }
     return this.startWebLogin();

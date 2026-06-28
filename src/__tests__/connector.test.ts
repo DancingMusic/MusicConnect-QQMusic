@@ -182,4 +182,17 @@ describe("QQMusicConnector (contract)", () => {
     await c.search({ keyword: "周杰伦" });
     expect(sawCookie).toBe(true);
   });
+
+  it("falls back to official web login for stale QR flow without apiBaseUrl", async () => {
+    const c = new QQMusicConnector();
+    await c.init({});
+
+    const result = await c.login({ intent: "continue", flowId: "stale-qr-flow" });
+
+    expect(result.status).toBe("pending");
+    expect(result.flow).toBe("browser");
+    expect(result.flowId).toBe("qq-music-web-cookie");
+    expect(result.message).toContain("官方登录窗口");
+    expect(result.actions?.[0]?.cookieCapture?.provider).toBe("qq-music");
+  });
 });

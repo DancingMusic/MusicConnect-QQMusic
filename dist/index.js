@@ -97,7 +97,7 @@ var QQMusicConnector = class {
       id: "qq-music",
       name: "QQ \u97F3\u4E50",
       description: "QQ Music data source with official web login",
-      version: "0.5.1",
+      version: "0.5.2",
       capabilities: ["search", "stream", "playlist", "login"],
       configSchema: [
         {
@@ -174,6 +174,7 @@ var QQMusicConnector = class {
       if (capturedCookie) return this.acceptWebCookie(capturedCookie);
       if (request.flowId === QQ_WEB_COOKIE_FLOW_ID) return this.startWebLogin("\u8BF7\u7EE7\u7EED\u5728 QQ \u97F3\u4E50\u5B98\u65B9\u767B\u5F55\u7A97\u53E3\u5B8C\u6210\u767B\u5F55");
       if (!request.flowId) return { status: "error", message: "\u7F3A\u5C11 QQ \u97F3\u4E50\u767B\u5F55 flowId" };
+      if (!this.baseUrl) return this.startWebLogin("\u8BF7\u91CD\u65B0\u6253\u5F00 QQ \u97F3\u4E50\u5B98\u65B9\u767B\u5F55\u7A97\u53E3\uFF1B\u4E8C\u7EF4\u7801\u4EE3\u7406\u767B\u5F55\u9700\u8981\u5148\u914D\u7F6E QQ Music API \u7AEF\u70B9\u3002");
       return this.continueQrLogin(request.flowId);
     }
     return this.startWebLogin();
