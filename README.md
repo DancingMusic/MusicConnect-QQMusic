@@ -51,7 +51,7 @@ This repo uses an auto-release workflow ([`.github/workflows/release.yml`](.gith
 
 **Pin to a specific version** (recommended for production):
 ```
-https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.0/dist/index.js
+https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.1/dist/index.js
 ```
 
 **Always-latest** (handy for dev, but jsdelivr caches `@main` for up to a week):

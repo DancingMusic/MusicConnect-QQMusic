@@ -171,7 +171,7 @@ export class QQMusicConnector implements MusicConnector {
     id: "qq-music",
     name: "QQ 音乐",
     description: "QQ Music data source with official web login",
-    version: "0.5.0",
+    version: "0.5.1",
     capabilities: ["search", "stream", "playlist", "login"],
     configSchema: [
       {
@@ -425,7 +425,6 @@ export class QQMusicConnector implements MusicConnector {
         },
         message,
       }],
-      nextPollMs: 4000,
       message,
     };
   }

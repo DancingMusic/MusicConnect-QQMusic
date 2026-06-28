@@ -169,6 +169,7 @@ describe("QQMusicConnector (contract)", () => {
     expect(start.flowId).toBe("qq-music-web-cookie");
     expect(start.actions?.[0]?.type).toBe("open-url");
     expect(start.actions?.[0]?.cookieCapture?.provider).toBe("qq-music");
+    expect(start.nextPollMs).toBeUndefined();
 
     const done = await c.login({
       intent: "continue",

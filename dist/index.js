@@ -97,7 +97,7 @@ var QQMusicConnector = class {
       id: "qq-music",
       name: "QQ \u97F3\u4E50",
       description: "QQ Music data source with official web login",
-      version: "0.5.0",
+      version: "0.5.1",
       capabilities: ["search", "stream", "playlist", "login"],
       configSchema: [
         {
@@ -329,7 +329,6 @@ var QQMusicConnector = class {
         },
         message
       }],
-      nextPollMs: 4e3,
       message
     };
   }
