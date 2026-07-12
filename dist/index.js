@@ -1,4 +1,16 @@
 // src/index.ts
+function validateBaseUrl(value) {
+  const url = new URL(value);
+  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+  if (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) {
+    throw new Error("QQ \u97F3\u4E50\u7F51\u5173\u5FC5\u987B\u4F7F\u7528 HTTPS\uFF1B\u672C\u5730\u5F00\u53D1\u4EC5\u5141\u8BB8 loopback HTTP");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("QQ \u97F3\u4E50\u7F51\u5173\u5730\u5740\u4E0D\u80FD\u5305\u542B\u5185\u5D4C\u51ED\u636E\u3001\u67E5\u8BE2\u53C2\u6570\u6216\u7247\u6BB5");
+  }
+  url.pathname = url.pathname.replace(/\/$/, "");
+  return url.toString().replace(/\/$/, "");
+}
 function joinSinger(s) {
   if (!s.singer) return "";
   return s.singer.map((x) => x?.name).filter(Boolean).join(", ");
@@ -33,7 +45,7 @@ var QQMusicConnector = class {
       variant: "anonymous",
       authRequirement: "none",
       supportedHosts: ["web", "desktop"],
-      version: "0.5.3",
+      version: "0.5.4",
       capabilities: ["search", "stream", "playlist"],
       configSchema: [
         {
@@ -50,7 +62,8 @@ var QQMusicConnector = class {
   }
   async init(config) {
     const typed = config;
-    this.baseUrl = (typed?.apiBaseUrl || "").replace(/\/$/, "");
+    const configuredUrl = (typed?.apiBaseUrl || "").trim();
+    this.baseUrl = configuredUrl ? validateBaseUrl(configuredUrl) : "";
     if (!this.baseUrl) {
       console.warn(
         "[QQMusicConnector] apiBaseUrl not configured \u2014 QQ search will stay empty. Configure a compatible HTTPS catalog gateway before searching."
@@ -143,7 +156,10 @@ var QQMusicConnector = class {
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, String(value));
     }
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(15e3)
+    });
     if (!res.ok) {
       throw new Error(`QQ Music API failed: ${res.status} ${res.statusText}`);
     }

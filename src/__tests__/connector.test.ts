@@ -37,6 +37,13 @@ describe("QQMusicConnector (contract)", () => {
     expect(r.tracks).toEqual([]);
   });
 
+  it("requires a credential-free HTTPS gateway except on loopback", async () => {
+    const c = new QQMusicConnector();
+    await expect(c.init({ apiBaseUrl: "http://gateway.example.com" })).rejects.toThrow("HTTPS");
+    await expect(c.init({ apiBaseUrl: "https://user:secret@gateway.example.com" })).rejects.toThrow("内嵌凭据");
+    await expect(c.init({ apiBaseUrl: "http://127.0.0.1:3400" })).resolves.toBeUndefined();
+  });
+
   it("search returns track-shaped results when configured", async () => {
     mockFetch({
       "/search": {

@@ -42,7 +42,7 @@ npm run build
 ```
 
 ```text
-https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.3/dist/index.js
+https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.4/dist/index.js
 ```
 
 统一文档：[DancingMusic Docs](https://dancingmusic.github.io/docs/)

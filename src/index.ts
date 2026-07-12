@@ -23,6 +23,19 @@ export interface QQMusicConfig {
   apiBaseUrl?: string;
 }
 
+function validateBaseUrl(value: string): string {
+  const url = new URL(value);
+  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+  if (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) {
+    throw new Error("QQ 音乐网关必须使用 HTTPS；本地开发仅允许 loopback HTTP");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("QQ 音乐网关地址不能包含内嵌凭据、查询参数或片段");
+  }
+  url.pathname = url.pathname.replace(/\/$/, "");
+  return url.toString().replace(/\/$/, "");
+}
+
 interface QQSong {
   songmid?: string;
   songname?: string;
@@ -82,7 +95,7 @@ export class QQMusicConnector implements MusicConnector {
     variant: "anonymous",
     authRequirement: "none",
     supportedHosts: ["web", "desktop"],
-    version: "0.5.3",
+    version: "0.5.4",
     capabilities: ["search", "stream", "playlist"],
     configSchema: [
       {
@@ -100,7 +113,8 @@ export class QQMusicConnector implements MusicConnector {
 
   async init(config?: Record<string, unknown>): Promise<void> {
     const typed = config as QQMusicConfig | undefined;
-    this.baseUrl = (typed?.apiBaseUrl || "").replace(/\/$/, "");
+    const configuredUrl = (typed?.apiBaseUrl || "").trim();
+    this.baseUrl = configuredUrl ? validateBaseUrl(configuredUrl) : "";
     if (!this.baseUrl) {
       console.warn(
         "[QQMusicConnector] apiBaseUrl not configured — QQ search will stay empty. " +
@@ -212,7 +226,10 @@ export class QQMusicConnector implements MusicConnector {
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, String(value));
     }
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(15_000),
+    });
     if (!res.ok) {
       throw new Error(`QQ Music API failed: ${res.status} ${res.statusText}`);
     }
