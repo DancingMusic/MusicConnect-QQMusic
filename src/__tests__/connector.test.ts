@@ -23,10 +23,11 @@ describe("QQMusicConnector (contract)", () => {
   it("declares meta + advanced configSchema for apiBaseUrl", () => {
     const c = new QQMusicConnector();
     expect(c.meta.id).toBe("qq-music");
-    expect(c.meta.capabilities).toContain("login");
+    expect(c.meta.capabilities).not.toContain("login");
+    expect(c.meta.variant).toBe("anonymous");
     const f = c.meta.configSchema?.find(x => x.key === "apiBaseUrl");
     expect(f?.required).toBe(false);
-    expect(c.meta.configSchema?.find(x => x.key === "authCookie")).toBeDefined();
+    expect(c.meta.configSchema?.find(x => x.key === "authCookie")).toBeUndefined();
   });
 
   it("returns empty when apiBaseUrl is missing", async () => {
@@ -148,7 +149,7 @@ describe("QQMusicConnector (contract)", () => {
     expect(info!.format).toBe("mp3");
   });
 
-  it("supports official web login and forwards cookie to future requests", async () => {
+  it("ignores legacy cookie config and never forwards it to a configurable gateway", async () => {
     let sawCookie = false;
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -163,36 +164,9 @@ describe("QQMusicConnector (contract)", () => {
     });
 
     const c = new QQMusicConnector();
-    await c.init({ apiBaseUrl: BASE });
-    const start = await c.login({ intent: "start" });
-    expect(start.flow).toBe("browser");
-    expect(start.flowId).toBe("qq-music-web-cookie");
-    expect(start.actions?.[0]?.type).toBe("open-url");
-    expect(start.actions?.[0]?.cookieCapture?.provider).toBe("qq-music");
-    expect(start.nextPollMs).toBeUndefined();
-
-    const done = await c.login({
-      intent: "continue",
-      flowId: "qq-music-web-cookie",
-      input: { cookie: "uin=123; qm_keyst=abc" },
-    });
-    expect(done.status).toBe("authenticated");
-    expect(done.configPatch).toEqual({ authCookie: "uin=123; qm_keyst=abc" });
-
+    await c.init({ apiBaseUrl: BASE, authCookie: "uin=123; qm_keyst=abc" });
+    expect(c.login).toBeUndefined();
     await c.search({ keyword: "周杰伦" });
-    expect(sawCookie).toBe(true);
-  });
-
-  it("falls back to official web login for stale QR flow without apiBaseUrl", async () => {
-    const c = new QQMusicConnector();
-    await c.init({});
-
-    const result = await c.login({ intent: "continue", flowId: "stale-qr-flow" });
-
-    expect(result.status).toBe("pending");
-    expect(result.flow).toBe("browser");
-    expect(result.flowId).toBe("qq-music-web-cookie");
-    expect(result.message).toContain("官方登录窗口");
-    expect(result.actions?.[0]?.cookieCapture?.provider).toBe("qq-music");
+    expect(sawCookie).toBe(false);
   });
 });

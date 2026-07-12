@@ -1,68 +1,48 @@
-# @dancingmusic/music-connect-qqmusic
+# MusicConnect-QQMusic
 
-QQ Music connector for [DancingMusic](https://github.com/DancingMusic/DancingMusic).
+QQ 音乐的 DancingMusic **匿名连接器实现**。
 
-🔗 **Live demo:** [https://dancingmusic.github.io/MusicConnect-QQMusic/](https://dancingmusic.github.io/MusicConnect-QQMusic/) — search + play table built from this connector's own `dist/index.js`.
+- 实现 ID：`qq-music`
+- 家族 ID：`qq-music`
+- 变体：`anonymous`
+- 登录要求：`none`
+- 能力：搜索、歌曲信息、可用时的播放地址、歌单
+- 主机：Web、Desktop
 
-QQ Music has no official open API. Account login uses the official QQ Music web page in the DancingMusic desktop login window and saves the returned cookie automatically. Search/playback data still needs a QQ Music API-compatible proxy when you want QQ catalog browsing:
+QQ 音乐没有面向普通第三方应用的通用公共目录 REST API。v0.5.3 起，本仓库只连接用户信任并自行维护的 HTTPS 网关，不再声称直接兼容路由不同的社区项目，也不包含登录、扫码或 Cookie 采集逻辑。
 
-- [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api) (Node, actively maintained)
-- [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi) (Node, archived but functional)
-
-## Setup
-
-1. In DancingMusic: open the music store → connector switcher (top-right) → **添加连接器** → **GitHub** tab → paste:
-   ```
-   https://github.com/DancingMusic/MusicConnect-QQMusic
-   ```
-2. Click **登录** and finish login in the official QQ Music page shown inside DancingMusic.
-3. Advanced only: deploy a QQ Music API proxy and paste its base URL into **高级设置** if you need QQ catalog search/playback.
-
-Optional login config fields:
-
-- `authCookie` — QQ Music cookie, saved automatically after official web login.
-- `apiBaseUrl` — advanced data proxy base URL.
-- `authStartPath` — legacy proxy QR creation endpoint path. Defaults to `/user/qr`.
-- `authPollPath` — legacy proxy QR polling endpoint path. Defaults to `/user/qr/check`.
-
-## Track ID format
-
-`qq:<songmid>` (QQ uses a string `songmid` like `001fakp82WoZ8u` as the canonical id)
-
-## API endpoints used
-
-- `GET /search?key=...&pageNo=...&pageSize=...` — keyword search
-- `GET /song?songmid=...` — track detail
-- `GET /song/url?id=...` — stream URL
-- Official web login at `https://y.qq.com/n/ryqq/profile` — desktop cookie capture
-- `GET /user/qr` / `GET /user/qr/check?key=...` — legacy proxy QR fallback (configurable)
-
-## Note on legal status
-
-Same as the NetEase connector: QQ Music's catalog is licensed and most tracks require a paid VIP account. The connector returns playable URLs only for tracks the proxy can unlock (free + previews). For full-catalog access, use your own valid account session and stay within the platform's terms.
-
-## License
-
-MIT
-
-## Versioned releases
-
-This repo uses an auto-release workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)) that creates a `v<package.json version>` tag + GitHub Release on every push to `main` whose version field has changed. Each release attaches the freshly-built `dist/index.js`.
-
-**Pin to a specific version** (recommended for production):
-```
-https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.2/dist/index.js
+```json
+{
+  "apiBaseUrl": "https://your-qqmusic-gateway.example.com"
+}
 ```
 
-**Always-latest** (handy for dev, but jsdelivr caches `@main` for up to a week):
-```
-https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.2/dist/index.js
+未配置网关时，连接器会返回空目录，不会悄悄切换到公共代理。
+
+## 稳定网关契约
+
+- `GET /search?key=...&pageNo=...&pageSize=...`
+- `GET /song?songmid=...`
+- `GET /song/url?id=...`
+- `GET /top/playlist?pageNo=...&pageSize=...&sortId=...`
+- `GET /playlist?id=...`
+
+网关可自行适配社区项目，例如 [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api) 或 [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi)，但连接器不复制其代码、许可证或不稳定路由。播放地址受版权、地区、会员状态和网关能力限制，允许返回空值。
+
+## 账号版边界
+
+账号登录、收藏和会员能力以后使用独立仓库及实现 ID（建议 `qq-music-account`）。账号版必须经主仓凭据代理，不把 Cookie/Token 放进连接器配置或第三方网关 URL。
+
+## 开发与发布
+
+```bash
+npm install
+npm test
+npm run build
 ```
 
-### Releasing a new version
+```text
+https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.3/dist/index.js
+```
 
-1. Edit code under `src/`
-2. `npm version patch` (or `minor` / `major`) — bumps `package.json`
-3. `npm run build` — refreshes `dist/index.js`
-4. Commit (including `dist/`) + push to `main`
-5. The workflow detects the new version, creates the tag, and publishes the GitHub Release automatically
+统一文档：[DancingMusic Docs](https://dancingmusic.github.io/docs/)

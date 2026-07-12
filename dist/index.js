@@ -1,29 +1,4 @@
 // src/index.ts
-var QQ_WEB_COOKIE_FLOW_ID = "qq-music-web-cookie";
-var QQ_LOGIN_URL = "https://y.qq.com/n/ryqq/profile";
-var QQ_WARMUP_URL = "https://y.qq.com/n/ryqq/player";
-var QQ_COOKIE_PRIORITY = [
-  "uin",
-  "qqmusic_uin",
-  "wxuin",
-  "login_type",
-  "qm_keyst",
-  "qqmusic_key",
-  "music_key",
-  "p_skey",
-  "skey",
-  "psrf_qqopenid",
-  "psrf_qqunionid",
-  "psrf_qqaccess_token",
-  "psrf_qqrefresh_token",
-  "wxopenid",
-  "wxunionid",
-  "wxrefresh_token",
-  "wxskey",
-  "p_uin",
-  "ptcz",
-  "RK"
-];
 function joinSinger(s) {
   if (!s.singer) return "";
   return s.singer.map((x) => x?.name).filter(Boolean).join(", ");
@@ -48,57 +23,18 @@ function toTrack(s) {
     updatedAt: ""
   };
 }
-function asRecord(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-function firstString(...values) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value;
-    if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  }
-  return void 0;
-}
-function normalizeImageUrl(value) {
-  if (!value) return void 0;
-  if (/^(?:https?:|data:image\/)/i.test(value)) return value;
-  if (/^[a-z0-9+/=]+$/i.test(value) && value.length > 80) {
-    return `data:image/png;base64,${value}`;
-  }
-  return value;
-}
-function parseCookieHeader(cookieText) {
-  const out = {};
-  String(cookieText || "").split(";").forEach((part) => {
-    const idx = part.indexOf("=");
-    if (idx <= 0) return;
-    const key = part.slice(0, idx).trim();
-    const value = part.slice(idx + 1).trim();
-    if (key) out[key] = value;
-  });
-  return out;
-}
-function qqCookieHasLogin(cookieText) {
-  const obj = parseCookieHeader(cookieText);
-  const rawUin = Number(obj.login_type) === 2 ? obj.wxuin || obj.uin || obj.p_uin || "" : obj.uin || obj.qqmusic_uin || obj.wxuin || obj.p_uin || "";
-  const uin = String(rawUin).replace(/\D/g, "");
-  const musicKey = obj.qm_keyst || obj.qqmusic_key || obj.music_key || obj.p_skey || obj.skey || obj.psrf_qqaccess_token || obj.psrf_qqrefresh_token || obj.wxrefresh_token || obj.wxskey || "";
-  return !!(uin && musicKey);
-}
-function qqCookieHasPlaybackLogin(cookieText) {
-  const obj = parseCookieHeader(cookieText);
-  const rawUin = Number(obj.login_type) === 2 ? obj.wxuin || obj.uin || obj.p_uin || "" : obj.uin || obj.qqmusic_uin || obj.wxuin || obj.p_uin || "";
-  const uin = String(rawUin).replace(/\D/g, "");
-  const playbackKey = obj.qm_keyst || obj.qqmusic_key || obj.music_key || obj.wxskey || "";
-  return !!(uin && playbackKey);
-}
 var QQMusicConnector = class {
   constructor() {
     this.meta = {
       id: "qq-music",
       name: "QQ \u97F3\u4E50",
-      description: "QQ Music data source with official web login",
-      version: "0.5.2",
-      capabilities: ["search", "stream", "playlist", "login"],
+      description: "Anonymous QQ Music catalog through a compatible self-hosted gateway",
+      familyId: "qq-music",
+      variant: "anonymous",
+      authRequirement: "none",
+      supportedHosts: ["web", "desktop"],
+      version: "0.5.3",
+      capabilities: ["search", "stream", "playlist"],
       configSchema: [
         {
           key: "apiBaseUrl",
@@ -106,78 +42,20 @@ var QQMusicConnector = class {
           type: "url",
           required: false,
           placeholder: "https://your-qqmusic-api.example.com",
-          help: "\u9AD8\u7EA7\u8BBE\u7F6E\uFF1A\u81EA\u90E8\u7F72\u7684 Rain120/qq-music-api \u6216 jsososo/QQMusicApi \u5B9E\u4F8B\u3002\u767B\u5F55\u4E0D\u9700\u8981\u914D\u7F6E\u6B64\u9879\uFF1B\u672A\u914D\u7F6E\u65F6\u65E0\u6CD5\u641C\u7D22 QQ \u66F2\u5E93\u3002"
-        },
-        {
-          key: "authCookie",
-          label: "QQ \u97F3\u4E50\u767B\u5F55 Cookie",
-          type: "password",
-          required: false,
-          placeholder: "uin=...; qm_keyst=...",
-          help: "\u5B98\u65B9\u7F51\u9875\u767B\u5F55\u540E\u81EA\u52A8\u4FDD\u5B58\u3002\u666E\u901A\u7528\u6237\u4E0D\u9700\u8981\u624B\u52A8\u7C98\u8D34\u3002"
-        },
-        {
-          key: "authStartPath",
-          label: "\u4E8C\u7EF4\u7801\u521B\u5EFA\u8DEF\u5F84",
-          type: "text",
-          required: false,
-          placeholder: "/user/qr",
-          default: "/user/qr",
-          help: "\u4E0D\u540C QQ \u97F3\u4E50\u4EE3\u7406\u7684\u767B\u5F55\u7AEF\u70B9\u53EF\u80FD\u4E0D\u540C\uFF0C\u53EF\u6309\u81EA\u90E8\u7F72\u670D\u52A1\u8C03\u6574\u3002"
-        },
-        {
-          key: "authPollPath",
-          label: "\u4E8C\u7EF4\u7801\u8F6E\u8BE2\u8DEF\u5F84",
-          type: "text",
-          required: false,
-          placeholder: "/user/qr/check",
-          default: "/user/qr/check",
-          help: "\u8F6E\u8BE2\u7AEF\u70B9\u9700\u8FD4\u56DE\u767B\u5F55\u72B6\u6001\u548C cookie\u3002"
+          help: "\u9700\u8981\u517C\u5BB9\u672C\u4ED3\u5E93\u6587\u6863\u6240\u5217\u8DEF\u7531\u7684\u81EA\u90E8\u7F72 HTTPS \u7F51\u5173\u3002\u672A\u914D\u7F6E\u65F6\u4E0D\u4F1A\u4F2A\u88C5\u4E3A\u53EF\u641C\u7D22\u6216\u53EF\u64AD\u653E\u3002"
         }
       ]
     };
     this.baseUrl = "";
-    this.authCookie = "";
-    this.authStartPath = "/user/qr";
-    this.authPollPath = "/user/qr/check";
   }
   async init(config) {
     const typed = config;
     this.baseUrl = (typed?.apiBaseUrl || "").replace(/\/$/, "");
-    this.authCookie = typed?.authCookie || "";
-    this.authStartPath = typed?.authStartPath || "/user/qr";
-    this.authPollPath = typed?.authPollPath || "/user/qr/check";
     if (!this.baseUrl) {
       console.warn(
-        "[QQMusicConnector] apiBaseUrl not configured \u2014 QQ search will stay empty. Login can still use the official web cookie flow."
+        "[QQMusicConnector] apiBaseUrl not configured \u2014 QQ search will stay empty. Configure a compatible HTTPS catalog gateway before searching."
       );
     }
-  }
-  async login(request = { intent: "status" }) {
-    const intent = request.intent ?? "status";
-    if (intent === "status") {
-      return this.authCookie ? { status: "authenticated", message: "QQ \u97F3\u4E50\u8D26\u53F7\u4F1A\u8BDD\u5DF2\u914D\u7F6E" } : { status: "anonymous", message: "\u672A\u767B\u5F55 QQ \u97F3\u4E50" };
-    }
-    if (intent === "logout") {
-      this.authCookie = "";
-      return {
-        status: "anonymous",
-        message: "\u5DF2\u9000\u51FA QQ \u97F3\u4E50\u8D26\u53F7",
-        configPatch: { authCookie: "" }
-      };
-    }
-    if (intent === "cancel") {
-      return { status: "anonymous", message: "\u5DF2\u53D6\u6D88 QQ \u97F3\u4E50\u767B\u5F55" };
-    }
-    if (intent === "continue") {
-      const capturedCookie = firstString(request.input?.cookie, request.input?.authCookie);
-      if (capturedCookie) return this.acceptWebCookie(capturedCookie);
-      if (request.flowId === QQ_WEB_COOKIE_FLOW_ID) return this.startWebLogin("\u8BF7\u7EE7\u7EED\u5728 QQ \u97F3\u4E50\u5B98\u65B9\u767B\u5F55\u7A97\u53E3\u5B8C\u6210\u767B\u5F55");
-      if (!request.flowId) return { status: "error", message: "\u7F3A\u5C11 QQ \u97F3\u4E50\u767B\u5F55 flowId" };
-      if (!this.baseUrl) return this.startWebLogin("\u8BF7\u91CD\u65B0\u6253\u5F00 QQ \u97F3\u4E50\u5B98\u65B9\u767B\u5F55\u7A97\u53E3\uFF1B\u4E8C\u7EF4\u7801\u4EE3\u7406\u767B\u5F55\u9700\u8981\u5148\u914D\u7F6E QQ Music API \u7AEF\u70B9\u3002");
-      return this.continueQrLogin(request.flowId);
-    }
-    return this.startWebLogin();
   }
   async search(query) {
     const keyword = (query.keyword || "").trim();
@@ -252,142 +130,6 @@ var QQMusicConnector = class {
       pageSize
     };
   }
-  async startQrLogin() {
-    if (!this.baseUrl) throw new Error("\u8BF7\u5148\u914D\u7F6E QQ Music API \u7AEF\u70B9");
-    const body = await this.request(this.authStartPath);
-    const data = asRecord(body.data);
-    const flowId = firstString(
-      data.key,
-      data.unikey,
-      data.loginId,
-      data.qrKey,
-      body.key,
-      body.unikey,
-      body.loginId,
-      body.qrKey
-    );
-    const qrUrl = firstString(
-      data.qrurl,
-      data.qrUrl,
-      data.qrCode,
-      data.qrcode,
-      data.url,
-      body.qrurl,
-      body.qrUrl,
-      body.qrCode,
-      body.qrcode,
-      body.url
-    );
-    const imageUrl = normalizeImageUrl(firstString(
-      data.qrimg,
-      data.qrImg,
-      data.imageUrl,
-      data.image,
-      data.img,
-      body.qrimg,
-      body.qrImg,
-      body.imageUrl,
-      body.image,
-      body.img
-    ));
-    if (!flowId && !qrUrl && !imageUrl) {
-      throw new Error("QQ \u97F3\u4E50\u4EE3\u7406\u672A\u8FD4\u56DE\u4E8C\u7EF4\u7801\u767B\u5F55\u4FE1\u606F");
-    }
-    return {
-      status: "pending",
-      flow: "qr",
-      flowId: flowId || qrUrl || imageUrl,
-      actions: [{
-        type: "qr",
-        label: "QQ \u97F3\u4E50\u626B\u7801\u767B\u5F55",
-        qrUrl,
-        imageUrl,
-        message: "\u4F7F\u7528 QQ \u97F3\u4E50 App \u626B\u7801\u786E\u8BA4"
-      }],
-      expiresAt: Date.now() + 2 * 60 * 1e3,
-      nextPollMs: 2500,
-      message: "\u4F7F\u7528 QQ \u97F3\u4E50 App \u626B\u7801\u786E\u8BA4"
-    };
-  }
-  startWebLogin(message = "\u5728 QQ \u97F3\u4E50\u5B98\u65B9\u9875\u9762\u5B8C\u6210\u767B\u5F55\u540E\uFF0CDancingMusic \u4F1A\u81EA\u52A8\u4FDD\u5B58\u5F53\u524D\u8D26\u53F7\u4F1A\u8BDD\u3002") {
-    return {
-      status: "pending",
-      flow: "browser",
-      flowId: QQ_WEB_COOKIE_FLOW_ID,
-      actions: [{
-        type: "open-url",
-        label: "\u6253\u5F00 QQ \u97F3\u4E50\u5B98\u65B9\u767B\u5F55\u7A97\u53E3",
-        url: QQ_LOGIN_URL,
-        cookieCapture: {
-          provider: "qq-music",
-          title: "QQ \u97F3\u4E50\u767B\u5F55",
-          domains: ["qq.com", "y.qq.com", "qqmusic.qq.com"],
-          requiredCookieNames: ["uin", "qqmusic_uin", "wxuin", "p_uin"],
-          playbackCookieNames: ["qm_keyst", "qqmusic_key", "music_key", "wxskey"],
-          cookieNames: QQ_COOKIE_PRIORITY,
-          warmupUrl: QQ_WARMUP_URL,
-          message: "\u684C\u9762\u7AEF\u4F1A\u5728\u64AD\u653E\u5668\u5185\u6253\u5F00 QQ \u97F3\u4E50\u5B98\u65B9\u767B\u5F55\u9875\uFF0C\u5E76\u81EA\u52A8\u8BFB\u53D6\u64AD\u653E\u6240\u9700 cookie\u3002"
-        },
-        message
-      }],
-      message
-    };
-  }
-  acceptWebCookie(cookie) {
-    if (!qqCookieHasLogin(cookie)) {
-      return { status: "error", message: "\u672A\u8BFB\u53D6\u5230\u6709\u6548 QQ \u97F3\u4E50\u4F1A\u8BDD cookie" };
-    }
-    this.authCookie = cookie;
-    return {
-      status: "authenticated",
-      message: qqCookieHasPlaybackLogin(cookie) ? "QQ \u97F3\u4E50\u767B\u5F55\u6210\u529F" : "QQ \u97F3\u4E50\u767B\u5F55\u6210\u529F\uFF1B\u5982\u90E8\u5206\u6B4C\u66F2\u65E0\u6CD5\u64AD\u653E\uFF0C\u8BF7\u91CD\u65B0\u6253\u5F00\u767B\u5F55\u7A97\u53E3\u8865\u5168\u64AD\u653E cookie",
-      configPatch: { authCookie: cookie }
-    };
-  }
-  async continueQrLogin(flowId) {
-    if (!this.baseUrl) throw new Error("\u8BF7\u5148\u914D\u7F6E QQ Music API \u7AEF\u70B9");
-    const body = await this.request(this.authPollPath, { key: flowId, loginId: flowId });
-    const data = asRecord(body.data);
-    const code = Number(data.code ?? body.code ?? body.result ?? data.result);
-    const status = String(data.status ?? body.status ?? data.message ?? body.message ?? "").toLowerCase();
-    const cookie = firstString(
-      data.cookie,
-      data.authCookie,
-      data.qqMusicCookie,
-      body.cookie,
-      body.authCookie,
-      body.qqMusicCookie
-    );
-    if (cookie || code === 803 || /success|authenticated|login/.test(status)) {
-      this.authCookie = cookie || this.authCookie;
-      return {
-        status: "authenticated",
-        user: {
-          id: firstString(data.uin, data.id, body.uin, body.id),
-          name: firstString(data.nickname, data.nick, data.name, body.nickname, body.nick, body.name),
-          avatarUrl: firstString(data.avatarUrl, data.avatar, body.avatarUrl, body.avatar)
-        },
-        message: firstString(data.message, body.message) || "QQ \u97F3\u4E50\u767B\u5F55\u6210\u529F",
-        configPatch: this.authCookie ? { authCookie: this.authCookie } : void 0
-      };
-    }
-    if (code === 800 || code === 408 || /expire|timeout/.test(status)) {
-      return { status: "expired", message: firstString(data.message, body.message) || "\u4E8C\u7EF4\u7801\u5DF2\u8FC7\u671F" };
-    }
-    if (code === 801 || code === 802 || /wait|scan|confirm|pending/.test(status)) {
-      return {
-        status: "pending",
-        flow: "qr",
-        flowId,
-        message: firstString(data.message, body.message) || "\u7B49\u5F85\u626B\u7801\u786E\u8BA4",
-        nextPollMs: 2500
-      };
-    }
-    return {
-      status: "error",
-      message: firstString(data.message, body.message) || `QQ \u97F3\u4E50\u767B\u5F55\u72B6\u6001\u5F02\u5E38: ${Number.isFinite(code) ? code : "unknown"}`
-    };
-  }
   parseId(trackId) {
     if (trackId.startsWith("qq:")) return trackId.slice(3);
     return trackId || null;
@@ -400,9 +142,6 @@ var QQMusicConnector = class {
     const url = new URL(path, `${this.baseUrl}/`);
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, String(value));
-    }
-    if (this.authCookie && !url.searchParams.has("cookie")) {
-      url.searchParams.set("cookie", this.authCookie);
     }
     const res = await fetch(url.toString());
     if (!res.ok) {
