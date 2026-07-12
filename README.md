@@ -56,7 +56,7 @@ https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.2/dist/index.
 
 **Always-latest** (handy for dev, but jsdelivr caches `@main` for up to a week):
 ```
-https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@main/dist/index.js
+https://cdn.jsdelivr.net/gh/DancingMusic/MusicConnect-QQMusic@v0.5.2/dist/index.js
 ```
 
 ### Releasing a new version
