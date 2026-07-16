@@ -13,6 +13,7 @@ import { MusicConnector, MusicConnectorMeta, MusicListQuery, MusicSearchResult, 
 interface QQMusicConfig {
     apiBaseUrl?: string;
 }
+declare const QQ_MUSIC_ARTWORK_ORIGINS: readonly ["https://y.gtimg.cn", "https://y.qq.com"];
 declare class QQMusicConnector implements MusicConnector {
     readonly meta: MusicConnectorMeta;
     private baseUrl;
@@ -30,4 +31,4 @@ declare class QQMusicConnector implements MusicConnector {
     private request;
 }
 
-export { type QQMusicConfig, QQMusicConnector, QQMusicConnector as default };
+export { type QQMusicConfig, QQMusicConnector, QQ_MUSIC_ARTWORK_ORIGINS, QQMusicConnector as default };

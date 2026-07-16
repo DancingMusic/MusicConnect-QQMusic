@@ -23,6 +23,8 @@ export interface QQMusicConfig {
   apiBaseUrl?: string;
 }
 
+export const QQ_MUSIC_ARTWORK_ORIGINS = ["https://y.gtimg.cn", "https://y.qq.com"] as const;
+
 function validateBaseUrl(value: string): string {
   const url = new URL(value);
   const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
@@ -66,7 +68,15 @@ function joinSinger(s: QQSong): string {
 
 function albumCover(mid?: string): string | undefined {
   if (!mid) return undefined;
-  return `https://y.gtimg.cn/music/photo_new/T002R300x300M000${mid}.jpg`;
+  return `${QQ_MUSIC_ARTWORK_ORIGINS[0]}/music/photo_new/T002R300x300M000${mid}.jpg`;
+}
+
+function artworkUrl(value?: string): string | undefined {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  if (raw.startsWith("//")) return `https:${raw}`;
+  if (raw.startsWith("/")) return new URL(raw, QQ_MUSIC_ARTWORK_ORIGINS[1]).toString();
+  return raw.replace(/^http:\/\//i, "https://");
 }
 
 function toTrack(s: QQSong): MusicTrack {
@@ -254,7 +264,7 @@ function toPlaylist(p: QQPlaylist): MusicPlaylist {
     id: `qq-playlist:${id}`,
     name: p.dissname || "Unknown",
     description: p.introduction,
-    coverUrl: p.imgurl,
+    coverUrl: artworkUrl(p.imgurl),
     trackCount: p.song_count ?? p.song_num,
     curator: p.creator?.name,
     externalUrl: id ? `https://y.qq.com/n/ryqq/playlist/${id}` : undefined,

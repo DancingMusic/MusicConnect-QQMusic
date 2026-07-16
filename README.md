@@ -29,6 +29,13 @@ QQ 音乐没有面向普通第三方应用的通用公共目录 REST API。v0.5.
 
 网关可自行适配社区项目，例如 [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api) 或 [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi)，但连接器不复制其代码、许可证或不稳定路由。播放地址受版权、地区、会员状态和网关能力限制，允许返回空值。
 
+## 封面边界
+
+歌曲和歌单返回 QQ 音乐真实 `coverUrl`，协议相对地址、HTTP 地址和 QQ 站内相对地址
+由连接器统一规范为 HTTPS。MusicStore 清单单独审核 `https://y.gtimg.cn` 与
+`https://y.qq.com` 两个封面 origin，供宿主生成 Canvas/WebGL 可用的最终封面；这不会
+扩大连接器网关权限，宿主和 Dancing 插件也不拼接 QQ 专有地址。
+
 ## 账号版边界
 
 账号登录、收藏和会员能力以后使用独立仓库及实现 ID（建议 `qq-music-account`）。账号版必须经主仓凭据代理，不把 Cookie/Token 放进连接器配置或第三方网关 URL。

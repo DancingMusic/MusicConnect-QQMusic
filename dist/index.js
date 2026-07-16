@@ -1,4 +1,5 @@
 // src/index.ts
+var QQ_MUSIC_ARTWORK_ORIGINS = ["https://y.gtimg.cn", "https://y.qq.com"];
 function validateBaseUrl(value) {
   const url = new URL(value);
   const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
@@ -17,7 +18,14 @@ function joinSinger(s) {
 }
 function albumCover(mid) {
   if (!mid) return void 0;
-  return `https://y.gtimg.cn/music/photo_new/T002R300x300M000${mid}.jpg`;
+  return `${QQ_MUSIC_ARTWORK_ORIGINS[0]}/music/photo_new/T002R300x300M000${mid}.jpg`;
+}
+function artworkUrl(value) {
+  const raw = value?.trim();
+  if (!raw) return void 0;
+  if (raw.startsWith("//")) return `https:${raw}`;
+  if (raw.startsWith("/")) return new URL(raw, QQ_MUSIC_ARTWORK_ORIGINS[1]).toString();
+  return raw.replace(/^http:\/\//i, "https://");
 }
 function toTrack(s) {
   const id = s.songmid || "";
@@ -172,7 +180,7 @@ function toPlaylist(p) {
     id: `qq-playlist:${id}`,
     name: p.dissname || "Unknown",
     description: p.introduction,
-    coverUrl: p.imgurl,
+    coverUrl: artworkUrl(p.imgurl),
     trackCount: p.song_count ?? p.song_num,
     curator: p.creator?.name,
     externalUrl: id ? `https://y.qq.com/n/ryqq/playlist/${id}` : void 0
@@ -181,5 +189,6 @@ function toPlaylist(p) {
 var index_default = QQMusicConnector;
 export {
   QQMusicConnector,
+  QQ_MUSIC_ARTWORK_ORIGINS,
   index_default as default
 };

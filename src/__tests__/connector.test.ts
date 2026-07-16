@@ -70,7 +70,7 @@ describe("QQMusicConnector (contract)", () => {
     expect(t.title).toBe("晴天");
     expect(t.artist).toBe("周杰伦");
     expect(t.album).toBe("叶惠美");
-    expect(t.coverUrl).toContain("y.gtimg.cn/music");
+    expect(t.coverUrl).toBe("https://y.gtimg.cn/music/photo_new/T002R300x300M000002Neh8l0RxIPZ.jpg");
     expect(t.durationSec).toBe(269);
   });
 
@@ -82,7 +82,7 @@ describe("QQMusicConnector (contract)", () => {
           list: [{
             dissid: 8675309,
             dissname: "经典华语",
-            imgurl: "https://y.gtimg.cn/x.jpg",
+            imgurl: "//y.gtimg.cn/x.jpg",
             song_count: 50,
             creator: { name: "QQ官方" },
             introduction: "时代金曲",
@@ -98,6 +98,7 @@ describe("QQMusicConnector (contract)", () => {
     expect(p.id).toBe("qq-playlist:8675309");
     expect(p.name).toBe("经典华语");
     expect(p.trackCount).toBe(50);
+    expect(p.coverUrl).toBe("https://y.gtimg.cn/x.jpg");
     expect(p.externalUrl).toContain("y.qq.com");
   });
 
