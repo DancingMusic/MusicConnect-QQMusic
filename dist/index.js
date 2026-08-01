@@ -53,7 +53,7 @@ var QQMusicConnector = class {
       variant: "anonymous",
       authRequirement: "none",
       supportedHosts: ["web", "desktop"],
-      version: "0.5.4",
+      version: "0.5.5",
       capabilities: ["search", "stream", "playlist"],
       configSchema: [
         {

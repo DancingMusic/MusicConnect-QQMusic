@@ -3,7 +3,7 @@
 - Spec-ID: `qq-music-anonymous-connector`
 - Version: `1.0.0`
 - Status: `Active`
-- Last-Updated: `2026-07-16`
+- Last-Updated: `2026-08-01`
 
 ## Artwork
 
